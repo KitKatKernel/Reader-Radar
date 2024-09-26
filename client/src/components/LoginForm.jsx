@@ -1,16 +1,20 @@
-// see SignupForm.js for comments
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { Form, Button, Alert } from 'react-bootstrap';
 
-import { loginUser } from '../utils/googleBooksAPI';
+import { useMutation } from '@apollo/client';
+import { LOGIN_USER } from '../utils/queries';
 import Auth from '../utils/auth';
 
 const LoginForm = () => {
+  // Manages form state for email and password inputs
   const [userFormData, setUserFormData] = useState({ email: '', password: '' });
-  const [validated] = useState(false);
-  const [showAlert, setShowAlert] = useState(false);
+  const [validated] = useState(false); // Handles form validation state
+  const [showAlert, setShowAlert] = useState(false); // Controls visibility of error alerts
+
+  const [login, { error }] = useMutation(LOGIN_USER); 
 
   const handleInputChange = (event) => {
+    // Updates form data when user types in inputs
     const { name, value } = event.target;
     setUserFormData({ ...userFormData, [name]: value });
   };
@@ -18,7 +22,7 @@ const LoginForm = () => {
   const handleFormSubmit = async (event) => {
     event.preventDefault();
 
-    // check if form has everything (as per react-bootstrap docs)
+    // Validates form fields before proceeding
     const form = event.currentTarget;
     if (form.checkValidity() === false) {
       event.preventDefault();
@@ -26,22 +30,24 @@ const LoginForm = () => {
     }
 
     try {
-      const response = await loginUser(userFormData);
+      // Executes login mutation with user-provided data
+      const { data } = await login({
+        variables: { ...userFormData }
+      });
 
-      if (!response.ok) {
-        throw new Error('something went wrong!');
+      // If login is successful, token is saved and user is authenticated
+      if (data && data.login && data.login.token) {
+        Auth.login(data.login.token);
+      } else {
+        throw new Error('Login failed');
       }
-
-      const { token, user } = await response.json();
-      console.log(user);
-      Auth.login(token);
     } catch (err) {
       console.error(err);
-      setShowAlert(true);
+      setShowAlert(true); 
     }
 
+    // Resets form fields after submission
     setUserFormData({
-      username: '',
       email: '',
       password: '',
     });
@@ -50,8 +56,8 @@ const LoginForm = () => {
   return (
     <>
       <Form noValidate validated={validated} onSubmit={handleFormSubmit}>
-        <Alert dismissible onClose={() => setShowAlert(false)} show={showAlert} variant='danger'>
-          Something went wrong with your login credentials!
+        <Alert dismissible onClose={() => setShowAlert(false)} show={showAlert || error} variant='danger'>
+          {error ? error.message : 'Something went wrong with your login credentials!'}
         </Alert>
         <Form.Group className='mb-3'>
           <Form.Label htmlFor='email'>Email</Form.Label>
